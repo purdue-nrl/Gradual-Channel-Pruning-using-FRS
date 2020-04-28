@@ -1,3 +1,6 @@
+'''
+Author: Sai Aparna Aketi
+'''
 import torch.nn as nn
 import torch.utils.model_zoo as model_zoo
 from layers import MaskedConv2d 

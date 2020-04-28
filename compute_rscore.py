@@ -1,4 +1,5 @@
 """
+Author: Sai Aparna Aketi
 Reference: https://github.com/Hey1Li/Salient-Relevance-Propagation/blob/master/Imagenet_Alex%20vs%20VGG16.ipynb
 """
 
@@ -116,11 +117,12 @@ class MaxPool2d(nn.MaxPool2d):
 class AvgPool2d(nn.AvgPool2d):
     def __init__(self, avgpool2d, alpha = 2):
         super(nn.AvgPool2d, self).__init__()
-        self.kernel_size    = avgpool2d.kernel_size
-        self.stride         = avgpool2d.stride
-        self.padding        = avgpool2d.padding
+        self.kernel_size        = avgpool2d.kernel_size
+        self.stride             = avgpool2d.stride
+        self.padding            = avgpool2d.padding
         self.count_include_pad  = avgpool2d.count_include_pad
-        self.ceil_mode      = avgpool2d.ceil_mode
+        self.ceil_mode          = avgpool2d.ceil_mode
+        self.divisor_override   = avgpool2d.divisor_override
         self.alpha          = alpha
         self.beta           = alpha-1
         

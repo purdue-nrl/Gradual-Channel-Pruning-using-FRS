@@ -1,3 +1,6 @@
+'''
+Author: Sai Aparna Aketi
+'''
 from __future__ import print_function
 import torch.nn as nn
 from compute_rscore import *
@@ -262,3 +265,71 @@ class RES164Net(nn.Module):
         return R
     
 #################################################################################
+        
+class RES34Net(nn.Module):
+    def __init__(self,res34):
+        super(RES34Net, self).__init__()
+        
+        self.initial    = nn.Sequential(Conv2d(res34.module.conv1),BatchNorm2d(res34.module.bn1),
+                                        ReLU(),MaxPool2d(res34.module.maxpool1))
+        self.res_i      = nn.Sequential(ResConnect_add())
+        self.layer1     = self._make_layer(block,res34.module.layer1, 3)
+        self.layer2_s   = block_with_shortcut(res34.module.layer2[0])
+        self.layer2     = self._make_layer_s(block,res34.module.layer2, 4)  
+        self.layer3_s   = block_with_shortcut(res34.module.layer3[0])
+        self.layer3     = self._make_layer_s(block,res34.module.layer3, 6) 
+        self.layer4_s   = block_with_shortcut(res34.module.layer4[0])
+        self.layer4     = self._make_layer_s(block,res34.module.layer4, 2) 
+        self.layer4_end = block_end(res34.module.layer4[2]) 
+        self.avgpool    = AvgPool2d(res34.module.avgpool) 
+        self.reshape    = Reshape(f=512, n=1)
+        self.linear     = Linear(res34.module.fc)
+        self.softmax    = nn.Softmax(dim=1)
+    
+    def _make_layer(self, block, layer, count):
+        layers = []
+        layers.append(block(layer[0]))
+        for i in range(1, count):
+            layers.append(block(layer[i]))
+        return nn.Sequential(*layers)
+        
+    def _make_layer_s(self, block, layer, count):
+        layers = []
+        layers.append(block(layer[1]))
+        for i in range(2, count):
+            layers.append(block(layer[i]))
+        return nn.Sequential(*layers)   
+        
+        
+    def forward(self, x): 
+        x   = self.initial(x)
+        x   = self.res_i(x)
+        out = self.layer1(x)            
+        out = self.layer2_s(out)
+        out = self.layer2(out)            
+        out = self.layer3_s(out)
+        out = self.layer3(out)
+        out = self.layer4_s(out)
+        out = self.layer4(out)
+        out = self.layer4_end(out)
+        out = self.avgpool(out)
+        out = self.linear(self.reshape(out))
+        out = self.softmax(out)
+        return out
+    
+    def relprop(self, R):
+        R = self.linear.relprop(R)
+        R = self.reshape.relprop(R)
+        R = self.avgpool.relprop(R)
+        R, Rprev = self.layer4_end.relprop(R) 
+        R, Rprev = self.layer4[0].relprop(R, Rprev)                   
+        R, Rprev = self.layer4_s.relprop(R, Rprev)
+        for i in range(0,5):              
+            R, Rprev = self.layer3[4-i].relprop(R, Rprev)                   
+        R, Rprev = self.layer3_s.relprop(R, Rprev)
+        for i in range(0,3):    
+            R, Rprev = self.layer2[2-i].relprop(R, Rprev)                   
+        R, Rprev = self.layer2_s.relprop(R, Rprev)
+        for i in range(0,3):
+            R, Rprev = self.layer1[2-i].relprop(R, Rprev) 
+        return R

@@ -1,3 +1,6 @@
+'''
+Author: Sai Aparna Aketi
+'''
 import sys
 import torch
 import torch.nn as nn
@@ -95,6 +98,10 @@ print(args.model)
 net = net.to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
+seed = 0           
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed)
+np.random.seed(seed)
 
 # decay the learning rate at 100, 150 epoch
 def adjust_learning_rate(optimizer, epoch):
@@ -154,6 +161,7 @@ for epoch in range(0, args.epochs):
     test(epoch, net)
     if epoch in range(0,args.N1):
         if (epoch+1)%args.n == 0:
+            print('Computing fetaure relevance scores...')
             cm, class_acc = compute_confusion_matrix(num_classes, trainloader, net)
             class_acc = class_acc/torch.max(class_acc)
             scale     = (1./class_acc)
@@ -175,14 +183,17 @@ for epoch in range(0, args.epochs):
                 b1 = np.array(np.where(feature_score==np.min(feature_score)))
                 prune_list_conv[int(b1[1,0])] = np.append(prune_list_conv[int(b1[1,0])],b1[0,0])
                 feature_score[int(b1[0,0]),int(b1[1,0])]=1e9 
+            print('Pruning the x least important channels...')
             if args.model == 'resnet-56':
                 net = prune_res56(net, prune_list_conv)
             elif args.model == 'resnet-110':
                 net = prune_res110(net, prune_list_conv)
             elif args.model == 'resnet-164':
                 net = prune_res164(net, prune_list_conv)
+            print('Test accuracy after pruning:')
             test(epoch, net)   
             prune_rate(net, True)
+            print('continue training...')
     
 test(epoch, net)
 save_model(net, model_path)

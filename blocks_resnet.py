@@ -1,3 +1,6 @@
+'''
+Author: Sai Aparna Aketi
+'''
 from __future__ import print_function
 import torch.nn as nn
 from compute_rscore import *

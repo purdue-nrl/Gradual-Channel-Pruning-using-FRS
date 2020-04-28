@@ -200,3 +200,60 @@ def rscore_layer_res164(net, trainset, classes,scale):
     feature_score3 = processes_scores_v2(feature_score3, classes, scale, csize, 1)
                                               
     return feature_score1, feature_score2, feature_score3
+################################################################################
+    
+def rscore_layer_res34(net, trainset, classes, scale, batch_size, subset_size):
+    model  = RES34Net(net).cuda()
+    model.eval()
+    feature_score1 = np.zeros((classes,512,6))
+    feature_score2 = np.zeros((classes,256,12))
+    feature_score3 = np.zeros((classes,128,8))
+    feature_score4 = np.zeros((classes,64,6))
+    csize = np.zeros(classes)
+
+    # store the activations using forward hook function
+    for name, module in model.named_modules():
+        module.register_forward_hook(forward_hook)
+    # set of layers which need the feature relevance scores i.e. all the conv layers
+    layers = []
+    for name, module in model.named_modules():
+        if name[-5:]=='lay.2' or name[-5:]=='res.0':
+            layers.append(module)
+   
+    train_loader = torch.utils.data.DataLoader(trainset, batch_size=int(batch_size/4), shuffle=True, num_workers=2, pin_memory=True)
+    with torch.no_grad():
+        for idx, (input, label) in enumerate(train_loader):
+            if idx ==subset_size:
+                break
+            input, label = input.to(device), label.to(device)
+            output   = model(input)  
+            csize   +=  1
+            T    = label.cpu().numpy()
+            T    = (T[:,np.newaxis] == np.arange(classes))*1.0
+            T    = torch.from_numpy(T).type(torch.cuda.FloatTensor)
+            LRP  = model.relprop(T)
+            for i in range(0,32):
+                score     = layers[i].Rscore
+                score     = score.view(score.size(0),score.size(1),-1)
+                score     = torch.mean(score,2) 
+                score     = score.cpu().detach().numpy()
+                for j in range(0, input.size(0)):
+                    if ~np.isnan(score[j,:]).any():
+                        if i in range(0,6):
+                            feature_score4[label[j],:,5-i] += score[j,:]
+                        elif i in range(6,14):
+                            feature_score3[label[j],:,13-i] += score[j,:]
+                        elif i in range(14,26):
+                            feature_score2[label[j],:,25-i] += score[j,:]
+                        else: 
+                            feature_score1[label[j],:,31-i] += score[j,:]
+                    if i==0:
+                        csize[label[j]]+=1
+    
+    # process the relevance scores             
+    feature_score1 = processes_scores(feature_score1, classes, scale, csize)
+    feature_score2 = processes_scores(feature_score2, classes, scale, csize)
+    feature_score3 = processes_scores(feature_score3, classes, scale, csize)
+    feature_score4 = processes_scores(feature_score4, classes, scale, csize)
+   
+    return feature_score1, feature_score2, feature_score3, feature_score4

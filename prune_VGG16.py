@@ -1,3 +1,6 @@
+'''
+Author: Sai Aparna Aketi
+'''
 import sys
 import torch
 import torch.nn as nn
@@ -71,6 +74,10 @@ print(net)
 net = net.to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
+seed = 0           
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed)
+np.random.seed(seed)
 
 def adjust_learning_rate(optimizer, epoch):
     update_list = [100, 150]
@@ -129,42 +136,14 @@ def test(epoch, net):
                 % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
     acc = 100.*correct/total
     return test_loss, acc
-   
-def prune_conv(net, layer, index_prev, index_curr, fout, fin):
-    mask_w = torch.ones((fout,fin,3,3)).cuda()
-    mask_w[:,index_prev,:,:]   = torch.zeros(fout,np.size(index_prev),3,3).cuda()
-    mask_w[index_curr,:,:,:]   = torch.zeros(np.size(index_curr), fin,3,3).cuda()
-    net.module.features[layer].set_mask(mask_w)
-    return net
-
-def prune_conv_np(net, layer, index, fout, fin):
-    mask_w = torch.ones((fout,fin,3,3)).cuda()
-    mask_w[index,:,:,:]   = torch.zeros(np.size(index),fin,3,3).cuda()
-    net.module.features[layer].set_mask(mask_w)
-    return net
-
-def prune_linear(net, layer, index_prev, index_curr, fout, fin):
-    mask_w = torch.ones((fout,fin)).cuda()
-    mask_b = torch.ones((fout)).cuda()
-    mask_w[index_curr,:]   = torch.zeros((np.size(index_curr),fin)).cuda()
-    mask_w[:, index_prev]   = torch.zeros((fout, np.size(index_prev))).cuda()
-    mask_b[index_curr]     = torch.zeros((np.size(index_curr))).cuda()
-    net.module.classifier[layer].set_mask(mask_w, mask_b)
-    return net
-
-def prune_linear_np(net, layer, index_prev, fout, fin):
-    mask_w = torch.ones((fout,fin)).cuda()
-    mask_b = torch.ones((fout)).cuda()
-    mask_w[:,index_prev]   = torch.zeros(fout,np.size(index_prev)).cuda()
-    net.module.classifier[layer].set_mask(mask_w, mask_b)
-    return net
-
+##############################################################################S
                                                                               
 prune_layers = [40, 37, 34, 30, 27, 24, 20, 17, 14, 10, 7]
 lin_layers   = [45]
 f    = [512, 512, 512, 512, 512, 512, 256, 256, 256, 128, 128, 64, 64]
 
 prune_list_conv = {0:np.array([],dtype='int32')}
+prune_list_lin  = np.array([],dtype='int32')
 for i in range(1,11):
     prune_list_conv[i] = np.array([],dtype='int32')
 
@@ -174,55 +153,45 @@ for epoch in range(0, args.epochs):
     adjust_learning_rate(optimizer, epoch)
     train(epoch, net)
     test(epoch, net)
-
     if epoch in range(0,args.N1):
         if (epoch+1)%args.n == 0:
-            cm, class_acc = compute_confusion_matrix(classes, trainloader, net)
+            print('Computing fetaure relevance scores...')
+            cm, class_acc = compute_confusion_matrix(num_classes, trainloader, net)
             class_acc = class_acc/torch.max(class_acc)
             scale     = (1./class_acc)
             scale     = F.sigmoid(scale)
             scale     = scale.detach().numpy();
-            feature_score1 = rscore_layer_vgg(net, trainloader, prune_layers[0:6], classes,f[0],scale)
-            feature_score2 = rscore_layer_vgg(net, trainloader, prune_layers[6:9], classes,f[6],scale)
-            feature_score3 = rscore_layer_vgg(net, trainloader, prune_layers[9:], classes,f[9],scale)
+            feature_score1 = rscore_layer_vgg(net, trainloader, prune_layers[0:6], num_classes,f[0],scale)
+            feature_score2 = rscore_layer_vgg(net, trainloader, prune_layers[6:9], num_classes,f[6],scale)
+            feature_score3 = rscore_layer_vgg(net, trainloader, prune_layers[9:], num_classes,f[9],scale)
             feature_score[0:512,0:6]  = feature_score1
             feature_score[0:256,6:9]  = feature_score2
             feature_score[0:128,9:11] = feature_score3
-            
-            if epoch==(p_epoch-1):   
-                feature_score_l = rscore_layer(net, trainloader,lin_layers , classes, 512,scale) 
-                next_prunec0, prune_list_lin0    = get_indices(feature_score_l[:,0], np.array([]), 22) 
-            else:
-                feature_score_l = rscore_layer(net, trainloader, lin_layers, classes, 512,scale) 
-                next_prunec0, prune_list_lin0    = get_indices(feature_score_l[:,0], prune_list_lin0, 22)
+   
+            if epoch!=(args.n-1):
+                feature_score_l = rscore_layer_vgg(net, trainloader, lin_layers, num_classes, 512,scale) 
+                next_prunec, prune_list_lin    = get_indices(feature_score_l[:,0], prune_list_lin, 22)
                 for i in range(0,11):
                     feature_score[prune_list_conv[i],i]=1e9
-                                                                                 
+            else:
+               feature_score_l = rscore_layer_vgg(net, trainloader,lin_layers , num_classes, 512,scale) 
+               next_prunec, prune_list_lin    = get_indices(feature_score_l[:,0], np.array([]), 22) 
+           
             for i in range(args.x):
                 b1 = np.array(np.where(feature_score==np.min(feature_score)))
                 prune_list_conv[int(b1[1,0])] = np.append(prune_list_conv[int(b1[1,0])],b1[0,0])
                 feature_score[int(b1[0,0]),int(b1[1,0])]=1e9
-                
-            prune_conv(net, prune_layers[0], prune_list_conv[1], prune_list_conv[0], f[0],f[1])
-            prune_conv(net, prune_layers[1], prune_list_conv[2], prune_list_conv[1], f[1],f[2])
-            prune_conv(net, prune_layers[2], prune_list_conv[3], prune_list_conv[2], f[2],f[3])
-            prune_conv(net, prune_layers[3], prune_list_conv[4], prune_list_conv[3], f[3],f[4])
-            prune_conv(net, prune_layers[4], prune_list_conv[5], prune_list_conv[4], f[4],f[5])
-            prune_conv(net, prune_layers[5], prune_list_conv[6], prune_list_conv[5], f[5],f[6])
-            prune_conv(net, prune_layers[6], prune_list_conv[7], prune_list_conv[6], f[6],f[7])
-            prune_conv(net, prune_layers[7], prune_list_conv[8], prune_list_conv[7], f[7],f[8])
-            prune_conv(net, prune_layers[8], prune_list_conv[9], prune_list_conv[8], f[8],f[9])
-            prune_conv(net, prune_layers[9], prune_list_conv[10], prune_list_conv[9], f[9],f[10])
-            prune_conv_np(net, prune_layers[10], prune_list_conv[10], f[10],f[11])
-            prune_linear(net, 0, prune_list_conv[0], prune_list_lin0 , 512, 512)
-            prune_linear_np(net, 3, prune_list_lin0, classes, 512)
+            print('Pruning the x least important channels...')
+            net = prune_vgg16(net, prune_list_conv, prune_list_lin, prune_layers, f, num_classes)
+            print('Test accuracy after pruning:')
             test(epoch, net)   
-            pr = prune_rate(net, True)
+            prune_rate(net, True)
+            print('continue training...')
 
-       
+print('test accuracy after training')    
 test(epoch, net)
 save_model(net, model_path)
-pr = prune_rate(net, True)           
+prune_rate(net, True)           
 
 
 
