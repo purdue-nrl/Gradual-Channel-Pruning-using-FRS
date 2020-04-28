@@ -11,12 +11,20 @@ This code is related to the paper titled, "Gradual Channel Pruning While Trainin
 * PyTorch == 1.4.0
 * Numpy   == 1.18.1
 
-# Additional Hyper-parameters
-* x  = Number of channels that have to be pruned after every few epochs. This value dictates the pruning percentage.
-* n  = Pruning is done after every n epochs.
-* N1 = No pruning is done after N1 epochs till the end of the training allowing the model to converge.
+# Hyper-parameters
+* --model      = model to train
+* --dataset    = dataset to train
+* --lr         = learning rate
+* --batch_size = batch size for training
+* --epochs     = total number of training epochs
+* --model_dir  = path of a directory to store the trained model
 
-# How to run
+# Additional Hyper-parameters
+* --x  = Number of channels that have to be pruned after every few epochs. This value dictates the pruning percentage.
+* --n  = Pruning is done after every n epochs.
+* --N1 = No pruning is done after N1 epochs till the end of the training allowing the model to converge.
+
+# How to run?
 The following are the commands used to gradually prune the model while training using feature relevance scores:
 
 VGG16:
