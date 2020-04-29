@@ -1,5 +1,5 @@
 # Gradual Channel Pruning Using Feature Relevance Scores
-This code is related to the paper titled, "Gradual Channel Pruning While Training using Feature Relevance scores for Convolutional Neural Networks", In arXiv preprint [arXiv:2002.09958, 2020.](https://arxiv.org/pdf/2002.09958.pdf) 
+This code is related to the paper titled, "Gradual Channel Pruning While Training using Feature Relevance Scores for Convolutional Neural Networks", In arXiv preprint [arXiv:2002.09958, 2020.](https://arxiv.org/pdf/2002.09958.pdf) 
 
 # Available Models
 * VGG-16
@@ -46,3 +46,6 @@ ResNet for ImageNet:
 ```
 python prune_imagenet_res34.py --model_dir './res34_imagenet.h5' 
 ```
+
+# Note
+This version of the code doesn't support the pruning for skip connections of the ResNet. I'll update it to include the pruning of skip conncetions soon. 
