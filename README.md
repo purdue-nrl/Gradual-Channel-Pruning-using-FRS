@@ -46,6 +46,3 @@ ResNet for ImageNet:
 ```
 python prune_imagenet_res34.py --model_dir './res34_imagenet.h5' 
 ```
-
-# Note
-This version of the code doesn't support the pruning of skip connections for the ResNet architectures. I'll update it to include the pruning of skip conncetions soon. 
