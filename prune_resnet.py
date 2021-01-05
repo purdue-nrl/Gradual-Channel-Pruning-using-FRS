@@ -177,7 +177,7 @@ for epoch in range(0, args.epochs):
             feature_score[0:(32*f[0]),(18*f[1]):(36*f[1])]   = feature_score2
             feature_score[0:(16*f[0]),(36*f[1]):(54*f[1])]   = feature_score3
             if epoch!=(args.n-1):
-                for i in range(0,54):
+                for i in range(0, f[1]*54):
                     feature_score[prune_list_conv[i],i]=1e9
             for i in range(args.x):
                 b1 = np.array(np.where(feature_score==np.min(feature_score)))
